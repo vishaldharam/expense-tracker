@@ -1,4 +1,3 @@
-# Use official Node.js image
 FROM node:18-alpine
 
 # Install system dependencies required for bcrypt
@@ -17,15 +16,17 @@ COPY package.json pnpm-lock.yaml ./
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
 # Rebuild bcrypt to ensure it's compiled correctly
-RUN pnpm rebuild bcrypt
-
+RUN apk add --no-cache make gcc g++ python3 && \
+    npm rebuild bcrypt --build-from-source && \
+    apk del make gcc g++ python3
+    
 # Copy the rest of the project
 COPY . .
 
 # Generate Prisma Client
 RUN npx prisma generate
 
-# **Build the TypeScript project** ✅
+# *Build the TypeScript project* ✅
 RUN pnpm build
 
 # Expose the port
