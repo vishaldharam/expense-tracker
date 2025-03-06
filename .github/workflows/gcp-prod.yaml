@@ -16,79 +16,43 @@ permissions:
   contents: read
 
 jobs:
-  dockerize-and-deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Google Cloud Auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
-          project_id: ${{ env.PROJECT_ID }}
-
-      - name: Set Env Vars
-        id: vars
-        shell: bash
-        run: |
-          echo "branch=$(echo ${GITHUB_REF#refs/heads/} | sed "s/\\//-/g")" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "repo_name=$(echo "$GITHUB_REPOSITORY" | awk -F / '{print $2}')" >> $GITHUB_OUTPUT
-
-      - name: Declare variables
-        run: |
-          echo "Branch: ${{ steps.vars.outputs.branch }}"
-          echo "Sha: ${{ steps.vars.outputs.sha_short }}"
-          # echo "Repo: ${{ steps.vars.outputs.repo_name }}"
-
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
+        # Authenticate with Google Cloud
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set Up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Configure Docker
-        run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev
+      - name: Authenticate Docker with Google Artifact Registry
+        run: gcloud auth configure-docker asia-south1-docker.pkg.dev
 
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Get env file from GCS
-        id: get_env_file
-        run: |
-        
-          gsutil cp gs://${{ env.ENVIRONMENT_PREFIX }}/env.txt .env
-
-      - name: Docker Build and Push
-        id: docker_build
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v3
         with:
           context: ./
           file: ./Dockerfile
-          builder: ${{ steps.buildx.outputs.name }}
           push: true
-          tags: ${{ env.DOCKER_IMAGE_URL }}:${{ steps.vars.outputs.branch }}_${{ steps.vars.outputs.sha_short }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
 
-      - name: Deploy to cloud run
-        uses: 'google-github-actions/deploy-cloudrun@v2'
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
-          image: ${{ env.DOCKER_IMAGE_URL }}:${{ steps.vars.outputs.branch }}_${{ steps.vars.outputs.sha_short }}
-          region: asia-southeast1
+          image: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          allow-unauthenticated: true
