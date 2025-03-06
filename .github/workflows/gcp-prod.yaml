@@ -3,7 +3,7 @@ name: GCP WORKFLOW
 env:
   SERVICE_NAME: expense-tracker-backend
   PROJECT_ID: expense-budget-management
-  DOCKER_IMAGE_URL: asia-south1-docker.pkg.dev/expense-budget-management/expense-tracker
+  DOCKER_IMAGE_URL: asia-south1-docker.pkg.dev/expense-budget-management/expense-tracker/expense-tracker
   ENVIRONMENT_PREFIX: my-app-config
   APPLICATION_NAME: expense-tracker-backend-api
 
