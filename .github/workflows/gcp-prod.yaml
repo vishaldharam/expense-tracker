@@ -65,7 +65,7 @@ jobs:
       - name: Get env file from GCS
         id: get_env_file
         run: |
-          gsutil cp gs://my-app-config/env.txt .env
+          gsutil cp gs://my-app-config/env.txt .env || { echo "Failed to fetch .env file"; exit 1; }
 
       - name: Docker Build and Push
         id: docker_build
@@ -84,4 +84,4 @@ jobs:
         with:
           service: ${{ env.SERVICE_NAME }}
           image: ${{ env.DOCKER_IMAGE_URL }}:${{ steps.vars.outputs.branch }}_${{ steps.vars.outputs.sha_short }}
-          region: asia-southeast1
+          region: asia-south1
