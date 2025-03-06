@@ -47,12 +47,12 @@ jobs:
           context: ./
           file: ./Dockerfile
           push: true
-          tags: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          tags: ${{ env.DOCKER_IMAGE_URL }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
-          image: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          image: ${{ env.DOCKER_IMAGE_URL }}:${{ github.sha }}
           region: ${{ env.REGION }}
           allow-unauthenticated: true
