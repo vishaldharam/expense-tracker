@@ -35,10 +35,8 @@ jobs:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Authenticate Docker with Google Artifact Registry
-        run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
-          docker push asia-south1-docker.pkg.dev/expense-budget-management/expense-tracker:test || echo "Push failed - debugging required"
+      - name: Authenticate with Google Cloud Artifact Registry
+        run: gcloud auth configure-docker asia-south1-docker.pkg.dev
           
       - name: Set Up Docker Buildx
         uses: docker/setup-buildx-action@v2
