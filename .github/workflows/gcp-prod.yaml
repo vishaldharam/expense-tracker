@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload Build Artifacts to GCS
         run: |
-          gsutil cp -r dist gs://your-gcs-bucket1/expense-backend-images/
+          gsutil cp -r dist gs://your-gcs-bucket-1/expense-backend-images/
 
   deploy:
     needs: build-and-test
