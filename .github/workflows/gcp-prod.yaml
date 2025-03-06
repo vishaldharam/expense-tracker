@@ -1,87 +1,75 @@
-name: GCP-STAG WORKFLOW
-
-env:
-  SERVICE_NAME: pwa-api
-  PROJECT_ID: abouv-stag
-  DOCKER_IMAGE_URL: asia-south1-docker.pkg.dev/abouv-stag/pwa-api/pwa-api
-  ENVIRONMENT_PREFIX: stag
-  APPLICATION_NAME: pwa-api
+name: GCP-PROD-CI-CD
 
 on:
   push:
-    branches: [main]
-
-permissions:
-  id-token: write
-  contents: read
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  dockerize-and-deploy:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Google Cloud Auth
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build NestJS App
+        run: pnpm build
+
+      - name: Upload Build Artifacts to GCS
+        run: |
+          gsutil cp -r dist gs://your-gcs-bucket1/expense-backend-images/
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
-          project_id: ${{ env.PROJECT_ID }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set Env Vars
-        id: vars
-        shell: bash
+      - name: Configure Docker for Google Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+
+      - name: Download Environment Variables from GCS
+        run: gsutil cp gs://my-app-config/env.txt .env
+
+      - name: Load Environment Variables
+        run: export $(grep -v '^#' .env | xargs)
+
+      - name: Build and Push Docker Image
         run: |
-          echo "branch=$(echo ${GITHUB_REF#refs/heads/} | sed "s/\\//-/g")" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "repo_name=$(echo "$GITHUB_REPOSITORY" | awk -F / '{print $2}')" >> $GITHUB_OUTPUT
+          docker build -t ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nestjs-repo/nestjs-app:latest .
+          docker push ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nestjs-repo/nestjs-app:latest
 
-      - name: Declare variables
+      - name: Deploy to Google Cloud Run
         run: |
-          echo "Branch: ${{ steps.vars.outputs.branch }}"
-          echo "Sha: ${{ steps.vars.outputs.sha_short }}"
-          # echo "Repo: ${{ steps.vars.outputs.repo_name }}"
-
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker
-        run: |
-          gcloud auth configure-docker asia-south1-docker.pkg.dev
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Get env file from GCS
-        id: get_env_file
-        run: |
-          gsutil cp gs://abouv-env-files/${{ env.ENVIRONMENT_PREFIX }}/${{ env.APPLICATION_NAME }}/.env .env
-
-      - name: Docker Build and Push
-        id: docker_build
-        uses: docker/build-push-action@v3
-        with:
-          context: ./
-          file: ./Dockerfile
-          builder: ${{ steps.buildx.outputs.name }}
-          push: true
-          tags: ${{ env.DOCKER_IMAGE_URL }}:${{ steps.vars.outputs.branch }}_${{ steps.vars.outputs.sha_short }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
-
-      - name: Deploy to cloud run
-        uses: 'google-github-actions/deploy-cloudrun@v2'
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          image: ${{ env.DOCKER_IMAGE_URL }}:${{ steps.vars.outputs.branch }}_${{ steps.vars.outputs.sha_short }}
-          region: asia-southeast1
+          gcloud run deploy nestjs-app \
+            --image ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/nestjs-repo/nestjs-app:latest \
+            --region ${{ secrets.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars $(cat .env | xargs)
