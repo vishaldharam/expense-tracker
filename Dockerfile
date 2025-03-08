@@ -29,8 +29,6 @@ RUN npx prisma generate
 # *Build the TypeScript project* ✅
 RUN pnpm build
 
-# Expose the port
-EXPOSE 8080
 
 # Start the application
 CMD ["node", "dist/main"]
