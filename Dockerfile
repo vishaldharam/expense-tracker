@@ -30,7 +30,9 @@ RUN npx prisma generate
 RUN pnpm build
 
 # Expose the port
-EXPOSE 5000
+EXPOSE 8080
+
+ENV PORT=8080
 
 # Start the application
 CMD ["node", "dist/main"]
