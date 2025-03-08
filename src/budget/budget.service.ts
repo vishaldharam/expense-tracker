@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Budget } from '@prisma/client';
 
@@ -23,29 +27,61 @@ export class BudgetService {
       return budget;
     } catch (error) {
       console.error(`Error fetching budget (ID: ${id}):`, error.message);
-      throw new InternalServerErrorException('Failed to fetch budget. Please try again.');
+      throw new InternalServerErrorException(
+        'Failed to fetch budget. Please try again.',
+      );
     }
   }
 
-  async createBudget(
+  async createOrUpdateBudget(
     userId: string,
-    data: Omit<Budget, 'id' | 'userId' | 'updatedAt' | 'remainingAmount'>,
-  ): Promise<Budget> {
+    budgets: Omit<Budget, 'id' | 'userId' | 'updatedAt' | 'remainingAmount'>[]
+  ): Promise<Budget[]> {
     try {
-      return this.prisma.budget.create({
-        data: {
-          ...data,
-          userId,
-          remainingAmount: data.limit,
-          month: data.month || new Date().getMonth() + 1, // ✅ Take from user or use current month
-          year: data.year || new Date().getFullYear(), // ✅ Take from user or use current year
-        },
-      });
+      const createdBudgets: Budget[] = [];
+  
+      for (const data of budgets) {
+        const existingBudget = await this.prisma.budget.findFirst({
+          where: {
+            userId,
+            category: data.category,
+          },
+        });
+  
+        let budget;
+        if (existingBudget) {
+          // ✅ Update existing budget by adding to the limit
+          budget = await this.prisma.budget.update({
+            where: { id: existingBudget.id },
+            data: {
+              limit: existingBudget.limit + data.limit,
+              remainingAmount: existingBudget.remainingAmount + data.limit, // Also increase remaining
+            },
+          });
+        } else {
+          // ✅ Create new budget entry
+          budget = await this.prisma.budget.create({
+            data: {
+              ...data,
+              userId,
+              remainingAmount: data.limit,
+              month: data.month || new Date().getMonth() + 1,
+              year: data.year || new Date().getFullYear(),
+            },
+          });
+        }
+  
+        createdBudgets.push(budget);
+      }
+  
+      return createdBudgets;
     } catch (error) {
-      console.error('Error creating budget:', error.message);
-      throw new Error('Failed to create budget. Please try again.');
+      console.error('Error creating/updating budget:', error.message);
+      throw new Error('Failed to create or update budget. Please try again.');
     }
   }
+  
+  
 
   async updateBudget(
     userId: string,

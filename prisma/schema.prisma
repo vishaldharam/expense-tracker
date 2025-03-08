@@ -24,11 +24,10 @@ model Expense {
   user          User     @relation(fields: [userId], references: [id])
   amount        Float
   category      String
-  type          String   // "fixed" | "variable"
-  paymentMethod String   // "cash" | "card" | "bank transfer"
+  title         String   // "fixed" | "variable"
   date          DateTime @default(now())
-  month         Int      // Extracted from date for quick filtering
-  year          Int      // Extracted from date for yearly reports
+  month         Int?     // Extracted from date for quick filtering
+  year          Int?      // Extracted from date for yearly reports
   notes         String?  // Optional field for descriptions
   updatedAt     DateTime @updatedAt
 }

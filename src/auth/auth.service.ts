@@ -5,7 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private jwtService: JwtService, private prisma: PrismaService) {}
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+  ) {}
 
   async register(name: string, email: string, password: string) {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -39,25 +42,37 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { refreshToken: hashedRefreshToken },
-      
     });
 
-    return { accessToken, refreshToken };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      accessToken,
+      refreshToken,
+    };
   }
 
   async refreshToken(token: string) {
     try {
-      const decoded = this.jwtService.verify(token, { secret: process.env.REFRESH_TOKEN_SECRET });
-      const user = await this.prisma.user.findUnique({ where: { email: decoded.email } });
+      const decoded = this.jwtService.verify(token, {
+        secret: process.env.REFRESH_TOKEN_SECRET,
+      });
+      const user = await this.prisma.user.findUnique({
+        where: { email: decoded.email },
+      });
 
       if (!user || !(await bcrypt.compare(token, user.refreshToken))) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const newAccessToken = this.jwtService.sign({ email: user.email, sub: user.id }, {
-        secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      });
+      const newAccessToken = this.jwtService.sign(
+        { email: user.email, sub: user.id },
+        {
+          secret: process.env.JWT_SECRET,
+          expiresIn: process.env.JWT_EXPIRES_IN,
+        },
+      );
 
       return { accessToken: newAccessToken };
     } catch (error) {

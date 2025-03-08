@@ -21,7 +21,7 @@ export class BudgetController {
   @AuthGuard()
   @Post()
   createBudget(@Req() req, @Body() body) {
-    return this.budgetService.createBudget(req.user.sub, body);
+    return this.budgetService.createOrUpdateBudget(req.user.sub, body);
   }
 
   @AuthGuard()
